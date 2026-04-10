@@ -1449,11 +1449,41 @@ async function ilkKurulumuTamamla(){
       {ad:'saglik',renk:'#7F77DD',sira:5},
       {ad:'diger',renk:'#888780',sira:6}
     ];
-    for (const c of defaults){ await sbPost('categories', c); }
+    let mevcutKat = [];
+    let mevcutUye = [];
+    try{ mevcutKat = await sbGet('categories','select=ad'); }catch(_){}
+    try{ mevcutUye = await sbGet('members','select=slug'); }catch(_){}
+    const varOlanAd = new Set((mevcutKat||[]).map(r=>r.ad));
+    const varOlanSlug = new Set((mevcutUye||[]).map(r=>r.slug));
+    for (const c of defaults){
+      if(varOlanAd.has(c.ad)) continue;
+      try{ await sbPost('categories', c); varOlanAd.add(c.ad); }
+      catch(err){
+        const msg = (err && err.message) ? String(err.message) : String(err);
+        if(msg.includes('23505')||msg.includes('duplicate')) continue;
+        throw err;
+      }
+    }
+    let katSay = 0;
+    try{ katSay = (await sbGet('categories','select=id')).length; }catch(_){}
+    if(katSay === 0){
+      setupMesaj('Kategoriler eklenemedi: veritabaninda ad tum kullanicilar icin tekil (categories_ad_key). Supabase SQL Editor\'da supabase-fix-categories-unique.sql calistir.', true);
+      return;
+    }
     const uyeler = [m1, m2].filter(Boolean);
     for (let i = 0; i < uyeler.length; i++){
       const ad = uyeler[i];
-      await sbPost('members', { slug: slugYap(ad), ad, renk: i===0 ? '#378ADD' : '#1D9E75', sira: i+1, aktif:true });
+      const slug = slugYap(ad);
+      if(!slug){ continue; }
+      if(varOlanSlug.has(slug)) continue;
+      try{
+        await sbPost('members', { slug, ad, renk: i===0 ? '#378ADD' : '#1D9E75', sira: i+1, aktif:true });
+        varOlanSlug.add(slug);
+      }catch(err){
+        const msg = (err && err.message) ? String(err.message) : String(err);
+        if(msg.includes('23505')||msg.includes('duplicate')) continue;
+        throw err;
+      }
     }
     document.getElementById('setupGate').style.display='none';
     await uygulamaBaslat(true);
