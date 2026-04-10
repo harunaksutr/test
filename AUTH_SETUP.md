@@ -9,6 +9,7 @@ Bu projede giris/kayit ve kullanici bazli veri izolasyonu vardir.
 | `supabase-auth-setup.sql` | `owner_id`, index, RLS policy (bir kez) |
 | `supabase-verify-after-migration.sql` | Migration sonrasi dogrulama sorgulari |
 | `supabase-backfill-owner-template.sql` | Eski veriyi tek kullaniciya baglama sablonu |
+| `supabase-fix-categories-unique.sql` | `categories_ad_key` / global slug hatasina kalici cozum |
 
 ## 1) Supabase SQL
 
@@ -103,3 +104,36 @@ Asagidakileri sirayla dene; her adimda beklenen sonucu kontrol et.
 ## Eski veriyi tek kullaniciya baglama
 
 `supabase-backfill-owner-template.sql` icindeki yorumlari kaldirip UUID’yi yapistir; calistir. Sonra istege bagli `NOT NULL` satirlarini ac.
+
+---
+
+## GitHub Pages + e-posta onayi (localhost’a gitme sorunu)
+
+E-posta dogrulama linki veya sifre sifirlama **Site URL**’e gider. Supabase varsayilan olarak `http://localhost:3000` kullanabilir.
+
+**Supabase Dashboard** > **Authentication** > **URL Configuration**:
+
+| Alan | Ornek deger |
+|------|-------------|
+| **Site URL** | `https://harunaksutr.github.io/test/` |
+| **Redirect URLs** | `https://harunaksutr.github.io/test/**` ve `https://harunaksutr.github.io/test/index.html` |
+
+Kaydet; onay mailindeki linke tekrar tikla veya giris sayfasindan manuel giris yap.
+
+---
+
+## Hata: `42830 there is no unique constraint matching given keys for referenced table "categories"`
+
+Foreign key, `CREATE UNIQUE INDEX ... WHERE` ile olusturulan **kismi index**e baglanamaz; PostgreSQL **UNIQUE constraint** (veya PK) ister. Guncel `supabase-fix-categories-unique.sql` bunu `ALTER TABLE ... ADD CONSTRAINT ... UNIQUE (owner_id, ad)` ile cozer.
+
+## Hata: `cannot drop constraint categories_ad_key ... transactions_kategori_fkey depends on it`
+
+`categories(ad)` uzerindeki unique, `transactions.kategori` foreign key tarafindan kullaniliyor. Guncel `supabase-fix-categories-unique.sql` once bu FK'yi guvenli sekilde kaldirır, sonra unique'i degistirir ve FK'yi `(owner_id, kategori) -> (owner_id, ad)` olarak yeniden kurar.
+
+## Hata: `duplicate key value violates unique constraint "categories_ad_key"`
+
+`categories` tablosunda `ad` **tum proje icin tekil** tanimli. Baska kullanicinin `market` kaydi varken senin hesabin ayni adi ekleyemez.
+
+**Cozum:** SQL Editor’da `supabase-fix-categories-unique.sql` dosyasini calistir (categories + members icin owner bazli unique).
+
+Sonra [uygulama](https://harunaksutr.github.io/test/) uzerinden **Kurulumu Tamamla**’yi tekrar dene.
